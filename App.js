@@ -86,7 +86,7 @@ const App = () => {
               <View>
                 <Text style={{ color: "white", fontSIze: 14 }}>Servicios</Text>
 
-                {services.map((service, index) => <Text style={{ color: "white", fontSize: 12 }}>{index + 1}. {service.uuid} - {service.isReadable ? "Lectura" : "Escritura"}</Text>)}
+                {services.map((service, index) => <Text key={JSON.stringify(service)} style={{ color: "white", fontSize: 12 }}>{index + 1}. {service.uuid} - {service.isReadable ? "Lectura" : "Escritura"}</Text>)}
               </View>
             </View>
           </View>
