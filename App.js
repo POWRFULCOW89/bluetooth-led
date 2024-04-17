@@ -1,12 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { BleManager } from 'react-native-ble-plx';
-import { Button, View, Platform, StyleSheet, Alert } from 'react-native';
-import { PermissionsAndroid } from 'react-native';
+import { Button, View, Platform, StyleSheet, Alert, Image, ImageBackground, Text, TouchableOpacity, Modal, TextInput } from 'react-native';
 import { encode } from 'base-64';
+import { base64Encode, requestBluetoothPermission, requestLocationPermission } from './utils';
 
 const App = () => {
   const [manager, setManager] = useState(null);
   const [device, setDevice] = useState(null);
+  const [isPermissionsModalVisible, setIsPermissionsModalVisible] = useState(false);
+  const [isConfigModalVisible, setIsConfigModalVisible] = useState(false);
+  const [targetDevice, setTargetDevice] = useState("solanum");
+  const [payload, setPayload] = useState("toggle\r\n");
 
   useEffect(() => {
     const bleManager = new BleManager();
@@ -17,58 +21,41 @@ const App = () => {
     };
   }, []);
 
-  const requestBluetoothPermission = async () => {
-    if (Platform.OS === 'ios') {
-      return true
-    }
-    if (Platform.OS === 'android' && PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION) {
-      const apiLevel = parseInt(Platform.Version.toString(), 10)
-
-      if (apiLevel < 31) {
-        const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION)
-        return granted === PermissionsAndroid.RESULTS.GRANTED
-      }
-      if (PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN && PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT) {
-        const result = await PermissionsAndroid.requestMultiple([
-          PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
-          PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
-          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION
-        ])
-
-        return (
-          result['android.permission.BLUETOOTH_CONNECT'] === PermissionsAndroid.RESULTS.GRANTED &&
-          result['android.permission.BLUETOOTH_SCAN'] === PermissionsAndroid.RESULTS.GRANTED &&
-          result['android.permission.ACCESS_FINE_LOCATION'] === PermissionsAndroid.RESULTS.GRANTED
-        )
-      }
-    }
-
-    this.showErrorToast('Permission have not been granted')
-
-    return false
-  }
 
   const scanForDevices = () => {
     manager.startDeviceScan(null, null, (error, scannedDevice) => {
       if (error) {
-        Alert.alert('Error scanning for devices:', error);
+        Alert.alert('Error scanning for devices:', error.reason);
         return;
       }
-      // Check if this is the device you're interested in
-      if (scannedDevice.name === 'solanum') {
+      if (scannedDevice.name === targetDevice) {
         manager.stopDeviceScan();
-        console.log("solanum found")
+        console.log(targetDevice, "found")
         setDevice(scannedDevice);
       }
     });
   };
+
+  const [services, setServices] = useState([]);
 
   const connectToDevice = async () => {
     if (!device) return;
     try {
       await device.connect();
       console.log('Connected to device:', device.name);
-      // Now you can interact with the device
+      // console.log(JSON.stringify(device))
+      const deviceWithServices = await device.discoverAllServicesAndCharacteristics();
+      // console.log('Discovered services:', deviceWithServices);
+      const services = await deviceWithServices.services();
+
+      for (let service of services) {
+        // console.log('Service:', service.uuid);
+        const characteristics = await service.characteristics();
+        if (characteristics.length > 1) {
+          // console.log('Characteristics:', characteristics);
+          setServices(characteristics)
+        }
+      }
     } catch (error) {
       console.error('Error connecting to device:', error);
     }
@@ -80,60 +67,106 @@ const App = () => {
     }
   }, [device]);
 
-  const requestLocationPermission = async (permissionType) => {
-    try {
-      let permission = PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION;
-      if (permissionType === 'coarse') {
-        permission = PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION;
-      }
-      const granted = await PermissionsAndroid.request(permission, {
-        title: `${permissionType === 'coarse' ? 'Coarse' : 'Fine'} Location Permission`,
-        message: `This app needs access to ${permissionType === 'coarse' ? 'coarse' : 'fine'} location to scan for BLE devices.`,
-        buttonPositive: 'OK',
-      });
-      if (granted === PermissionsAndroid.RESULTS.GRANTED) {
-        console.log(`${permissionType === 'coarse' ? 'Coarse' : 'Fine'} location permission granted`);
-      } else {
-        console.log(`${permissionType === 'coarse' ? 'Coarse' : 'Fine'} location permission denied`);
-      }
-    } catch (err) {
-      console.warn(err);
-    }
-  };
+  return <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+    <ImageBackground source={require("./assets/background.png")} style={{ width: '100%', height: '100%', }}>
+      <View style={{ justifyContent: "center", flex: 1 }}>
 
-  const base64Encode = (str) => {
-    const base64Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let result = '';
-    let i = 0;
+        {device && <View style={{ flex: 1 }}>
+          <Text style={{ color: "white", fontSize: 20, fontWeight: "bold", textAlign: "center", paddingTop: 40 }}>Estado: ON</Text>
 
-    while (i < str.length) {
-      const char1 = str.charCodeAt(i++);
-      const char2 = str.charCodeAt(i++);
-      const char3 = str.charCodeAt(i++);
+          <View style={{ flex: 1, justifyContent: "center", alignItems: "center", flexDirection: "row", paddingHorizontal: 20 }}>
+            <Image source={require("./assets/pico.png")} style={{ width: 100, flex: 1 }} resizeMode='contain' />
+            <View style={{ flex: 1.5 }}>
+              <Text style={{ color: "white", fontSize: 16, fontWeight: "bold" }}>{targetDevice}</Text>
 
-      const byte1 = char1 >> 2;
-      const byte2 = ((char1 & 0x3) << 4) | (char2 >> 4);
-      const byte3 = ((char2 & 0xF) << 2) | (char3 >> 6);
-      const byte4 = char3 & 0x3F;
+              <Text style={{ color: "white", marginTop: 10, fontSize: 14 }}>Estado: conectado</Text>
+              <Text style={{ color: "white", fontSize: 14 }}>ID: {device.id}</Text>
+              <Text style={{ color: "white", marginBottom: 10, fontSize: 14 }}>MTU: {device.mtu}</Text>
 
-      result += base64Chars[byte1] + base64Chars[byte2] + base64Chars[byte3] + base64Chars[byte4];
-    }
+              <View>
+                <Text style={{ color: "white", fontSIze: 14 }}>Servicios</Text>
 
-    // Pad with '=' if necessary
-    const padding = str.length % 3;
-    if (padding === 1) {
-      result += '==';
-    } else if (padding === 2) {
-      result += '=';
-    }
+                {services.map((service, index) => <Text style={{ color: "white", fontSize: 12 }}>{index + 1}. {service.uuid} - {service.isReadable ? "Lectura" : "Escritura"}</Text>)}
+              </View>
+            </View>
+          </View>
+        </View>}
 
-    return result;
-  };
+        <View style={{ paddingHorizontal: 40, flex: 1, justifyContent: "center" }}>
+          {device && <TouchableOpacity style={styles.button} onPress={() => {
+            device.cancelConnection().then(() => {
+              setDevice(null)
+              setServices([])
+            })
+          }}>
+            <Text style={styles.buttonText}>Olvidar</Text>
+          </TouchableOpacity>
+          }
 
+          <View style={{ alignItems: "center", flexDirection: "row" }}>
+            <TextInput placeholder="Nombre del dispositivo" style={{ flex: 1, backgroundColor: "white", borderRadius: 10, padding: 10 }} value={payload} onChangeText={(text) => setPayload(text)} />
+            <TouchableOpacity style={{ ...styles.button, marginLeft: 10 }} onPress={() => {
+              if (device) {
+                device.connect().then(device => {
+                  return device.discoverAllServicesAndCharacteristics()
+                }).then((device) => {
 
-  useEffect(() => {
-    manager.state().then(console.log)
-  }, [manager])
+                  const serviceUUID = services[0].serviceUUID
+                  const characteristicUUID = services.filter(service => service.isWritableWithoutResponse)[0].uuid
+
+                  // device.writeCharacteristicWithoutResponseForService("6E400001-B5A3-F393-E0A9-E50E24DCCA9E", "6E400002-B5A3-F393-E0A9-E50E24DCCA9E", encode(payload))
+
+                  console.log("serviceUUID", serviceUUID)
+                  console.log("characteristicUUID", characteristicUUID)
+                  console.log("payload", encode(payload))
+
+                  device.writeCharacteristicWithoutResponseForService(serviceUUID, characteristicUUID, encode(payload))
+                })
+              }
+            }}>
+              <Text style={styles.buttonText}>Enviar payload</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={{ alignItems: "center", flexDirection: "row" }}>
+            <TextInput placeholder="Nombre del dispositivo" style={{ flex: 1, backgroundColor: "white", borderRadius: 10, padding: 10 }} value={targetDevice} onChangeText={(text) => setTargetDevice(text)} />
+            <TouchableOpacity style={{ ...styles.button, marginLeft: 10 }} onPress={scanForDevices}>
+              <Text style={styles.buttonText}>Buscar</Text>
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity style={styles.button} onPress={() => { setIsPermissionsModalVisible(true) }}>
+            <Text style={styles.buttonText}>Permisos</Text>
+          </TouchableOpacity>
+
+          {/* <TouchableOpacity style={styles.button} onPress={() => { setIsConfigModalVisible(true) }}>
+            <Text style={styles.buttonText}>Configuración</Text>
+          </TouchableOpacity> */}
+        </View>
+      </View>
+      <Modal visible={isPermissionsModalVisible} transparent={true}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ backgroundColor: 'white', padding: 20, borderRadius: 10 }}>
+            <Text style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 20 }}>Permisos</Text>
+            <Text style={{ marginBottom: 10 }}>Bluetooth: Permitir</Text>
+            <Text style={{ marginBottom: 10 }}>Ubicación: Permitir</Text>
+            <Button title="Cerrar" onPress={() => setIsPermissionsModalVisible(false)} />
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={isConfigModalVisible} transparent={true}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ backgroundColor: 'white', padding: 20, borderRadius: 10 }}>
+            <Text style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 20 }}>Configuración</Text>
+            <TextInput placeholder="Nombre" style={{ marginBottom: 10 }} />
+            <TextInput placeholder="ID" style={{ marginBottom: 10 }} />
+            <Button title="Guardar" onPress={() => setIsConfigModalVisible(false)} />
+          </View>
+        </View>
+      </Modal>
+    </ImageBackground>
+  </View>
 
   return (
     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
@@ -148,7 +181,6 @@ const App = () => {
                 console.log("sending", base64Encode("toggle\r\n"))
 
                 device.writeCharacteristicWithoutResponseForService("6E400001-B5A3-F393-E0A9-E50E24DCCA9E", "6E400002-B5A3-F393-E0A9-E50E24DCCA9E",
-                  // "toggle\r\n"
                   encode("toggle\r\n")
                 )
               })
@@ -175,5 +207,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  button: {
+    backgroundColor: "#21b2b2",
+    padding: 15,
+    borderRadius: 10,
+    marginVertical: 10
+  },
+  buttonText: {
+    color: "white",
+    textAlign: "center",
+    fontSize: 16,
+    fontWeight: "bold",
   },
 });
