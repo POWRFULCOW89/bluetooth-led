@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
-import { View, PanResponder, Animated, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, PanResponder, Animated, StyleSheet, TouchableOpacity, Text } from 'react-native';
 
-const Slider = ({ minValue = 0, maxValue = 100, initialValue = 50, onValueChange }) => {
+const Slider = ({ minValue = 0, maxValue = 100, initialValue = 50, onValueChange, backgroundColor = "blue", textColor = "white" }) => {
     const [sliderValue, setSliderValue] = useState(initialValue);
     const containerWidth = useRef(0);
     const pan = useRef(new Animated.Value(0)).current;
@@ -17,7 +17,15 @@ const Slider = ({ minValue = 0, maxValue = 100, initialValue = 50, onValueChange
         useNativeDriver: false,
         listener: (_, gestureState) => {
             const newValue = (gestureState.moveX / containerWidth.current) * (maxValue - minValue);
-            setSliderValue(newValue);
+
+            if (newValue < minValue) {
+                setSliderValue(minValue);
+            } else if (newValue > maxValue) {
+                setSliderValue(maxValue);
+            } else {
+                setSliderValue(newValue);
+            } 
+
             onValueChange && onValueChange(newValue);
         },
     });
@@ -39,6 +47,9 @@ const Slider = ({ minValue = 0, maxValue = 100, initialValue = 50, onValueChange
         containerWidth.current = event.nativeEvent.layout.width;
     };
 
+    // Determine text color based on position relative to track fill
+    // const textColor = sliderValue < (maxValue - minValue) / 2 ? 'white' : 'black';
+
     return (
         <View style={styles.container} onLayout={handleContainerLayout}>
             <TouchableOpacity
@@ -52,16 +63,20 @@ const Slider = ({ minValue = 0, maxValue = 100, initialValue = 50, onValueChange
                     style={{
                         ...styles.trackFill,
                         width: `${((sliderValue - minValue) / (maxValue - minValue)) * 100}%`,
+                        backgroundColor: backgroundColor,
                     }}
                 />
+                <Text style={[styles.valueText, { color: textColor }]}>
+                    {Math.round(sliderValue)}
+                </Text>
             </TouchableOpacity>
             <Animated.View
-                // style={[
-                //     styles.slider,
-                //     {
-                //         transform: [{ translateX: pan }],
-                //     },
-                // ]}
+                style={[
+                    // styles.slider,
+                    {
+                        transform: [{ translateX: pan }],
+                    },
+                ]}
                 {...panResponder.panHandlers}
             />
         </View>
@@ -72,17 +87,21 @@ const styles = StyleSheet.create({
     container: {
         flexDirection: 'row',
         alignItems: 'center',
+        borderRadius: 50,
+        overflow: 'hidden',
     },
     track: {
+        position: 'relative',
         backgroundColor: '#ccc',
-        height: 20,
+        height: 30,
         flex: 1,
-        borderRadius: 10,
+        borderRadius: 5,
     },
     trackFill: {
+        position: 'absolute',
         height: '100%',
         backgroundColor: 'blue',
-        borderRadius: 10
+        borderRadius: 5,
     },
     slider: {
         position: 'absolute',
@@ -97,6 +116,17 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.3,
         shadowRadius: 2,
         elevation: 2,
+    },
+    valueText: {
+        position: 'absolute',
+        textAlign: 'center',
+        textAlignVertical: 'center',
+        lineHeight: 30,
+        marginLeft: 10,
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: "white",
+        zIndex: 1, // Ensure text appears above the track fill
     },
 });
 

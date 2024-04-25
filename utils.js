@@ -1,4 +1,6 @@
-import { PermissionsAndroid } from 'react-native';
+import {
+    PermissionsAndroid, Platform
+} from 'react-native';
 
 export const requestBluetoothPermission = async () => {
     if (Platform.OS === 'ios') {

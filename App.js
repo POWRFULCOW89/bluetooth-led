@@ -3,6 +3,10 @@ import { BleManager } from 'react-native-ble-plx';
 import { Button, View, Platform, StyleSheet, Alert, Image, ImageBackground, Text, TouchableOpacity, Modal, TextInput } from 'react-native';
 import { encode } from 'base-64';
 import { base64Encode, requestBluetoothPermission, requestLocationPermission } from './utils';
+import Slider from './Slider';
+// import Slider from '@react-native-community/slider'
+// import { useSharedValue } from 'react-native-reanimated';
+
 
 const App = () => {
   const [manager, setManager] = useState(null);
@@ -11,6 +15,16 @@ const App = () => {
   const [isConfigModalVisible, setIsConfigModalVisible] = useState(false);
   const [targetDevice, setTargetDevice] = useState("solanum");
   const [payload, setPayload] = useState("toggle\r\n");
+
+  const [led1Strength, setLed1Strength] = useState(0);
+  const [led2Strength, setLed2Strength] = useState(0);
+  const [led3Strength, setLed3Strength] = useState(0);
+
+  // const led1Strength = useSharedValue(30);
+  // const min = useSharedValue(0);
+  // const max = useSharedValue(100);
+
+
 
   useEffect(() => {
     const bleManager = new BleManager();
@@ -84,7 +98,7 @@ const App = () => {
               <Text style={{ color: "white", marginBottom: 10, fontSize: 14 }}>MTU: {device.mtu}</Text>
 
               <View>
-                <Text style={{ color: "white", fontSIze: 14 }}>Servicios</Text>
+                <Text style={{ color: "white", fontSize: 14 }}>Servicios</Text>
 
                 {services.map((service, index) => <Text key={JSON.stringify(service)} style={{ color: "white", fontSize: 12 }}>{index + 1}. {service.uuid} - {service.isReadable ? "Lectura" : "Escritura"}</Text>)}
               </View>
@@ -103,7 +117,7 @@ const App = () => {
           </TouchableOpacity>
           }
 
-          <View style={{ alignItems: "center", flexDirection: "row" }}>
+          {/* <View style={{ alignItems: "center", flexDirection: "row" }}>
             <TextInput placeholder="Nombre del dispositivo" style={{ flex: 1, backgroundColor: "white", borderRadius: 10, padding: 10 }} value={payload} onChangeText={(text) => setPayload(text)} />
             <TouchableOpacity style={{ ...styles.button, marginLeft: 10 }} onPress={() => {
               if (device) {
@@ -125,6 +139,64 @@ const App = () => {
               }
             }}>
               <Text style={styles.buttonText}>Enviar payload</Text>
+            </TouchableOpacity>
+          </View> */}
+
+          {/* <Slider style={{ width: 200, height: 40 }} minimumValue={0} maximumValue={255} value={led1Strength} onValueChange={value => setLed1Strength(value)} /> */}
+          {/* <Slider
+            style={styles.container}
+            progress={led1Strength}
+            minimumValue={min}
+            maximumValue={max}
+          /> */}
+
+
+          <View style={{ gap: 10, marginBottom: 20 }}>
+            <Slider minValue={0} maxValue={255} initialValue={127} onValueChange={(value) => {
+              console.log("New LED 1 strength:", value)
+              setLed1Strength(value)
+            }} />
+
+            <Slider minValue={0} maxValue={255} initialValue={127} onValueChange={(value) => {
+              console.log("New LED 2 strength:", value)
+              setLed2Strength(value)
+            }} backgroundColor='yellow' textColor="black" />
+
+
+            <Slider minValue={0} maxValue={255} initialValue={127} onValueChange={(value) => {
+              console.log("New LED 3 strength:", value)
+              setLed3Strength(value)
+            }} backgroundColor='red' />
+          </View>
+
+          <View style={{ alignItems: "center", flexDirection: "row" }}>
+            {/* <TextInput placeholder="Nombre del dispositivo" style={{ flex: 1, backgroundColor: "white", borderRadius: 10, padding: 10 }} value={payload} onChangeText={(text) => setPayload(text)} /> */}
+            <TouchableOpacity style={{ ...styles.button, flex: 1 }} onPress={() => {
+              if (device) {
+                device.connect().then(device => {
+                  return device.discoverAllServicesAndCharacteristics()
+                }).then((device) => {
+
+                  setPayload(`${led1Strength},${led2Strength},${led3Strength}`)
+                  console.log(payload)
+
+
+                  let ledPayload = `${Math.floor(led1Strength)},${Math.floor(led2Strength)},${Math.floor(led3Strength)}`
+
+                  const serviceUUID = services[0].serviceUUID
+                  const characteristicUUID = services.filter(service => service.isWritableWithoutResponse)[0].uuid
+
+                  // device.writeCharacteristicWithoutResponseForService("6E400001-B5A3-F393-E0A9-E50E24DCCA9E", "6E400002-B5A3-F393-E0A9-E50E24DCCA9E", encode(payload))
+
+                  console.log("serviceUUID", serviceUUID)
+                  console.log("characteristicUUID", characteristicUUID)
+                  console.log("payload", encode(ledPayload))
+
+                  device.writeCharacteristicWithoutResponseForService(serviceUUID, characteristicUUID, encode(ledPayload))
+                })
+              }
+            }}>
+              <Text style={styles.buttonText}>Actualizar LEDs</Text>
             </TouchableOpacity>
           </View>
 
@@ -148,8 +220,14 @@ const App = () => {
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
           <View style={{ backgroundColor: 'white', padding: 20, borderRadius: 10 }}>
             <Text style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 20 }}>Permisos</Text>
-            <Text style={{ marginBottom: 10 }}>Bluetooth: Permitir</Text>
-            <Text style={{ marginBottom: 10 }}>Ubicación: Permitir</Text>
+            {/* <Text style={{ marginBottom: 10 }}>Bluetooth: Permitir</Text>
+            <Text style={{ marginBottom: 10 }}>Ubicación: Permitir</Text> */}
+
+            <Button title="Request Bluetooth Permission" onPress={requestBluetoothPermission} />
+            <Button title="Request Coarse Location Permission" onPress={() => requestLocationPermission('coarse')} />
+            <Button title="Request Fine Location Permission" onPress={() => requestLocationPermission('fine')} />
+
+
             <Button title="Cerrar" onPress={() => setIsPermissionsModalVisible(false)} />
           </View>
         </View>
